@@ -97,10 +97,22 @@ class LIBPROTOBUF_EXPORT DescriptorDatabase {
   // This method has a default implementation that always returns
   // false.
   virtual bool FindAllExtensionNumbers(const string& /* extendee_type */,
-                                       vector<int>* /* output */) {
+                                       std::vector<int>* /* output */) {
     return false;
   }
 
+
+  // Finds the file names and appends them to the output in an
+  // undefined order. This method is best-effort: it's not guaranteed that the
+  // database will find all files. Returns true if the database supports
+  // searching all file names, otherwise returns false and leaves output
+  // unchanged.
+  //
+  // This method has a default implementation that always returns
+  // false.
+  virtual bool FindAllFileNames(std::vector<string>* output) {
+    return false;
+  }
 
  private:
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(DescriptorDatabase);
@@ -130,7 +142,7 @@ class LIBPROTOBUF_EXPORT DescriptorDatabase {
 class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
  public:
   SimpleDescriptorDatabase();
-  ~SimpleDescriptorDatabase();
+  ~SimpleDescriptorDatabase() override;
 
   // Adds the FileDescriptorProto to the database, making a copy.  The object
   // can be deleted after Add() returns.  Returns false if the file conflicted
@@ -143,14 +155,16 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
 
   // implements DescriptorDatabase -----------------------------------
   bool FindFileByName(const string& filename,
-                      FileDescriptorProto* output);
+                      FileDescriptorProto* output) override;
   bool FindFileContainingSymbol(const string& symbol_name,
-                                FileDescriptorProto* output);
+                                FileDescriptorProto* output) override;
   bool FindFileContainingExtension(const string& containing_type,
                                    int field_number,
-                                   FileDescriptorProto* output);
+                                   FileDescriptorProto* output) override;
   bool FindAllExtensionNumbers(const string& extendee_type,
-                               vector<int>* output);
+                               std::vector<int>* output) override;
+
+  bool FindAllFileNames(std::vector<string>* output) override;
 
  private:
   // So that it can use DescriptorIndex.
@@ -175,12 +189,13 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
     Value FindSymbol(const string& name);
     Value FindExtension(const string& containing_type, int field_number);
     bool FindAllExtensionNumbers(const string& containing_type,
-                                 vector<int>* output);
+                                 std::vector<int>* output);
+    void FindAllFileNames(std::vector<string>* output);
 
    private:
-    map<string, Value> by_name_;
-    map<string, Value> by_symbol_;
-    map<pair<string, int>, Value> by_extension_;
+    std::map<string, Value> by_name_;
+    std::map<string, Value> by_symbol_;
+    std::map<std::pair<string, int>, Value> by_extension_;
 
     // Invariant:  The by_symbol_ map does not contain any symbols which are
     // prefixes of other symbols in the map.  For example, "foo.bar" is a
@@ -202,7 +217,7 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
     // will find it.  Proof:
     // 1) Define the "search key" to be the key we are looking for, the "found
     //    key" to be the key found in step (1), and the "match key" to be the
-    //    key which actually matches the serach key (i.e. the key we're trying
+    //    key which actually matches the search key (i.e. the key we're trying
     //    to find).
     // 2) The found key must be less than or equal to the search key by
     //    definition.
@@ -235,7 +250,7 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
 
     // Find the last entry in the by_symbol_ map whose key is less than or
     // equal to the given name.
-    typename map<string, Value>::iterator FindLastLessOrEqual(
+    typename std::map<string, Value>::iterator FindLastLessOrEqual(
         const string& name);
 
     // True if either the arguments are equal or super_symbol identifies a
@@ -250,7 +265,7 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
 
 
   DescriptorIndex<const FileDescriptorProto*> index_;
-  vector<const FileDescriptorProto*> files_to_delete_;
+  std::vector<const FileDescriptorProto*> files_to_delete_;
 
   // If file is non-NULL, copy it into *output and return true, otherwise
   // return false.
@@ -268,7 +283,7 @@ class LIBPROTOBUF_EXPORT SimpleDescriptorDatabase : public DescriptorDatabase {
 class LIBPROTOBUF_EXPORT EncodedDescriptorDatabase : public DescriptorDatabase {
  public:
   EncodedDescriptorDatabase();
-  ~EncodedDescriptorDatabase();
+  ~EncodedDescriptorDatabase() override;
 
   // Adds the FileDescriptorProto to the database.  The descriptor is provided
   // in encoded form.  The database does not make a copy of the bytes, nor
@@ -288,22 +303,23 @@ class LIBPROTOBUF_EXPORT EncodedDescriptorDatabase : public DescriptorDatabase {
 
   // implements DescriptorDatabase -----------------------------------
   bool FindFileByName(const string& filename,
-                      FileDescriptorProto* output);
+                      FileDescriptorProto* output) override;
   bool FindFileContainingSymbol(const string& symbol_name,
-                                FileDescriptorProto* output);
+                                FileDescriptorProto* output) override;
   bool FindFileContainingExtension(const string& containing_type,
                                    int field_number,
-                                   FileDescriptorProto* output);
+                                   FileDescriptorProto* output) override;
   bool FindAllExtensionNumbers(const string& extendee_type,
-                               vector<int>* output);
+                               std::vector<int>* output) override;
 
  private:
-  SimpleDescriptorDatabase::DescriptorIndex<pair<const void*, int> > index_;
-  vector<void*> files_to_delete_;
+  SimpleDescriptorDatabase::DescriptorIndex<std::pair<const void*, int> >
+      index_;
+  std::vector<void*> files_to_delete_;
 
   // If encoded_file.first is non-NULL, parse the data into *output and return
   // true, otherwise return false.
-  bool MaybeParse(pair<const void*, int> encoded_file,
+  bool MaybeParse(std::pair<const void*, int> encoded_file,
                   FileDescriptorProto* output);
 
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(EncodedDescriptorDatabase);
@@ -313,18 +329,18 @@ class LIBPROTOBUF_EXPORT EncodedDescriptorDatabase : public DescriptorDatabase {
 class LIBPROTOBUF_EXPORT DescriptorPoolDatabase : public DescriptorDatabase {
  public:
   explicit DescriptorPoolDatabase(const DescriptorPool& pool);
-  ~DescriptorPoolDatabase();
+  ~DescriptorPoolDatabase() override;
 
   // implements DescriptorDatabase -----------------------------------
   bool FindFileByName(const string& filename,
-                      FileDescriptorProto* output);
+                      FileDescriptorProto* output) override;
   bool FindFileContainingSymbol(const string& symbol_name,
-                                FileDescriptorProto* output);
+                                FileDescriptorProto* output) override;
   bool FindFileContainingExtension(const string& containing_type,
                                    int field_number,
-                                   FileDescriptorProto* output);
+                                   FileDescriptorProto* output) override;
   bool FindAllExtensionNumbers(const string& extendee_type,
-                               vector<int>* output);
+                               std::vector<int>* output) override;
 
  private:
   const DescriptorPool& pool_;
@@ -341,29 +357,30 @@ class LIBPROTOBUF_EXPORT MergedDescriptorDatabase : public DescriptorDatabase {
   // Merge more than two databases.  The sources remain property of the caller.
   // The vector may be deleted after the constructor returns but the
   // DescriptorDatabases need to stick around.
-  explicit MergedDescriptorDatabase(const vector<DescriptorDatabase*>& sources);
-  ~MergedDescriptorDatabase();
+  explicit MergedDescriptorDatabase(
+      const std::vector<DescriptorDatabase*>& sources);
+  ~MergedDescriptorDatabase() override;
 
   // implements DescriptorDatabase -----------------------------------
   bool FindFileByName(const string& filename,
-                      FileDescriptorProto* output);
+                      FileDescriptorProto* output) override;
   bool FindFileContainingSymbol(const string& symbol_name,
-                                FileDescriptorProto* output);
+                                FileDescriptorProto* output) override;
   bool FindFileContainingExtension(const string& containing_type,
                                    int field_number,
-                                   FileDescriptorProto* output);
+                                   FileDescriptorProto* output) override;
   // Merges the results of calling all databases. Returns true iff any
   // of the databases returned true.
   bool FindAllExtensionNumbers(const string& extendee_type,
-                               vector<int>* output);
+                               std::vector<int>* output) override;
 
 
  private:
-  vector<DescriptorDatabase*> sources_;
+  std::vector<DescriptorDatabase*> sources_;
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(MergedDescriptorDatabase);
 };
 
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_DESCRIPTOR_DATABASE_H__

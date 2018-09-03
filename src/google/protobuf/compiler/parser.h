@@ -40,15 +40,16 @@
 #include <map>
 #include <string>
 #include <utility>
-#include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
-#include <google/protobuf/repeated_field.h>
 #include <google/protobuf/io/tokenizer.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/repeated_field.h>
 
 namespace google {
-namespace protobuf { class Message; }
-
 namespace protobuf {
+
+class Message;
+
 namespace compiler {
 
 // Defined in this file.
@@ -71,7 +72,7 @@ class LIBPROTOBUF_EXPORT Parser {
   // it.  Returns true if no errors occurred, false otherwise.
   bool Parse(io::Tokenizer* input, FileDescriptorProto* file);
 
-  // Optional fetaures:
+  // Optional features:
 
   // DEPRECATED:  New code should use the SourceCodeInfo embedded in the
   //   FileDescriptorProto.
@@ -224,6 +225,10 @@ class LIBPROTOBUF_EXPORT Parser {
     LocationRecorder(const LocationRecorder& parent, int path1);
     LocationRecorder(const LocationRecorder& parent, int path1, int path2);
 
+    // Creates a recorder that generates locations into given source code info.
+    LocationRecorder(const LocationRecorder& parent, int path1,
+                     SourceCodeInfo* source_code_info);
+
     ~LocationRecorder();
 
     // Add a path component.  See SourceCodeInfo.Location.path in
@@ -250,6 +255,9 @@ class LIBPROTOBUF_EXPORT Parser {
     void RecordLegacyLocation(const Message* descriptor,
         DescriptorPool::ErrorCollector::ErrorLocation location);
 
+    // Returns the number of path components in the recorder's current location.
+    int CurrentPathSize() const;
+
     // Attaches leading and trailing comments to the location.  The two strings
     // will be swapped into place, so after this is called *leading and
     // *trailing will be empty.
@@ -257,16 +265,17 @@ class LIBPROTOBUF_EXPORT Parser {
     // TODO(kenton):  See comment on TryConsumeEndOfDeclaration(), above, for
     //   why this is const.
     void AttachComments(string* leading, string* trailing,
-                        vector<string>* detached_comments) const;
+                        std::vector<string>* detached_comments) const;
 
    private:
     // Indexes of parent and current location in the parent
     // SourceCodeInfo.location repeated field. For top-level elements,
     // parent_index_ is -1.
     Parser* parser_;
+    SourceCodeInfo* source_code_info_;
     SourceCodeInfo::Location* location_;
 
-    void Init(const LocationRecorder& parent);
+    void Init(const LocationRecorder& parent, SourceCodeInfo* source_code_info);
   };
 
   // =================================================================
@@ -370,6 +379,12 @@ class LIBPROTOBUF_EXPORT Parser {
   bool ParseReservedNames(DescriptorProto* message,
                           const LocationRecorder& parent_location);
   bool ParseReservedNumbers(DescriptorProto* message,
+                            const LocationRecorder& parent_location);
+  bool ParseReserved(EnumDescriptorProto* message,
+                     const LocationRecorder& message_location);
+  bool ParseReservedNames(EnumDescriptorProto* message,
+                          const LocationRecorder& parent_location);
+  bool ParseReservedNumbers(EnumDescriptorProto* message,
                             const LocationRecorder& parent_location);
 
   // Parse an "extend" declaration.  (See also comments for
@@ -520,7 +535,7 @@ class LIBPROTOBUF_EXPORT Parser {
   // detached comments will be put into the leading_detached_comments field for
   // the next element (See SourceCodeInfo.Location in descriptor.proto), when
   // ConsumeEndOfDeclaration() is called.
-  vector<string> upcoming_detached_comments_;
+  std::vector<string> upcoming_detached_comments_;
 
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(Parser);
 };
@@ -556,14 +571,14 @@ class LIBPROTOBUF_EXPORT SourceLocationTable {
   void Clear();
 
  private:
-  typedef map<
-    pair<const Message*, DescriptorPool::ErrorCollector::ErrorLocation>,
-    pair<int, int> > LocationMap;
+  typedef std::map<
+    std::pair<const Message*, DescriptorPool::ErrorCollector::ErrorLocation>,
+    std::pair<int, int> > LocationMap;
   LocationMap location_map_;
 };
 
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_PARSER_H__

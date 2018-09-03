@@ -41,6 +41,7 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.RandomAccess;
 import java.util.Set;
 
 /**
@@ -57,6 +58,26 @@ public final class Internal {
 
   static final Charset UTF_8 = Charset.forName("UTF-8");
   static final Charset ISO_8859_1 = Charset.forName("ISO-8859-1");
+
+  /**
+   * Throws an appropriate {@link NullPointerException} if the given objects is {@code null}.
+   */
+  static <T> T checkNotNull(T obj) {
+    if (obj == null) {
+      throw new NullPointerException();
+    }
+    return obj;
+  }
+
+  /**
+   * Throws an appropriate {@link NullPointerException} if the given objects is {@code null}.
+   */
+  static <T> T checkNotNull(T obj, String message) {
+    if (obj == null) {
+      throw new NullPointerException(message);
+    }
+    return obj;
+  }
 
   /**
    * Helper called by generated code to construct default values for string
@@ -211,6 +232,11 @@ public final class Internal {
    */
   public interface EnumLiteMap<T extends EnumLite> {
     T findValueByNumber(int number);
+  }
+
+  /** Interface for an object which verifies integers are in range. */
+  public interface EnumVerifier {
+    boolean isInRange(int number);
   }
 
   /**
@@ -393,9 +419,8 @@ public final class Internal {
     }
   }
 
-  /**
-   * An empty byte array constant used in generated code.
-   */
+
+  /** An empty byte array constant used in generated code. */
   public static final byte[] EMPTY_BYTE_ARRAY = new byte[0];
 
   /**
@@ -408,6 +433,11 @@ public final class Internal {
   public static final CodedInputStream EMPTY_CODED_INPUT_STREAM =
       CodedInputStream.newInstance(EMPTY_BYTE_ARRAY);
 
+
+  /** Helper method to merge two MessageLite instances. */
+  static Object mergeMessage(Object destination, Object source) {
+    return ((MessageLite) destination).toBuilder().mergeFrom((MessageLite) source).buildPartial();
+  }
 
   /**
    * Provides an immutable view of {@code List<T>} around a {@code List<F>}.
@@ -457,10 +487,13 @@ public final class Internal {
     public static <T extends EnumLite> Converter<Integer, T> newEnumConverter(
         final EnumLiteMap<T> enumMap, final T unrecognizedValue) {
       return new Converter<Integer, T>() {
+        @Override
         public T doForward(Integer value) {
           T result = enumMap.findValueByNumber(value);
           return result == null ? unrecognizedValue : result;
         }
+
+        @Override
         public Integer doBackward(T value) {
           return value.getNumber();
         }
@@ -573,8 +606,10 @@ public final class Internal {
   /**
    * Extends {@link List} to add the capability to make the list immutable and inspect if it is
    * modifiable.
+   * <p>
+   * All implementations must support efficient random access.
    */
-  public static interface ProtobufList<E> extends List<E> {
+  public static interface ProtobufList<E> extends List<E>, RandomAccess {
 
     /**
      * Makes this list immutable. All subsequent modifications will throw an
@@ -586,6 +621,11 @@ public final class Internal {
      * Returns whether this list can be modified via the publicly accessible {@link List} methods.
      */
     boolean isModifiable();
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    ProtobufList<E> mutableCopyWithCapacity(int capacity);
   }
 
   /**
@@ -608,6 +648,12 @@ public final class Internal {
      * Like {@link #set(int, Object)} but more efficient in that it doesn't box the element.
      */
     int setInt(int index, int element);
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    @Override
+    IntList mutableCopyWithCapacity(int capacity);
   }
 
   /**
@@ -630,6 +676,12 @@ public final class Internal {
      * Like {@link #set(int, Object)} but more efficient in that it doesn't box the element.
      */
     boolean setBoolean(int index, boolean element);
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    @Override
+    BooleanList mutableCopyWithCapacity(int capacity);
   }
 
   /**
@@ -652,6 +704,12 @@ public final class Internal {
      * Like {@link #set(int, Object)} but more efficient in that it doesn't box the element.
      */
     long setLong(int index, long element);
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    @Override
+    LongList mutableCopyWithCapacity(int capacity);
   }
 
   /**
@@ -674,6 +732,12 @@ public final class Internal {
      * Like {@link #set(int, Object)} but more efficient in that it doesn't box the element.
      */
     double setDouble(int index, double element);
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    @Override
+    DoubleList mutableCopyWithCapacity(int capacity);
   }
 
   /**
@@ -696,5 +760,11 @@ public final class Internal {
      * Like {@link #set(int, Object)} but more efficient in that it doesn't box the element.
      */
     float setFloat(int index, float element);
+
+    /**
+     * Returns a mutable clone of this list with the specified capacity.
+     */
+    @Override
+    FloatList mutableCopyWithCapacity(int capacity);
   }
 }

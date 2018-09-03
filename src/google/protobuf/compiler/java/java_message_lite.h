@@ -47,8 +47,7 @@ namespace java {
 
 class ImmutableMessageLiteGenerator : public MessageGenerator {
  public:
-  explicit ImmutableMessageLiteGenerator(const Descriptor* descriptor,
-                                     Context* context);
+  ImmutableMessageLiteGenerator(const Descriptor* descriptor, Context* context);
   virtual ~ImmutableMessageLiteGenerator();
 
   virtual void Generate(io::Printer* printer);
@@ -70,12 +69,13 @@ class ImmutableMessageLiteGenerator : public MessageGenerator {
   void GenerateBuilder(io::Printer* printer);
   void GenerateDynamicMethodIsInitialized(io::Printer* printer);
   void GenerateDynamicMethodMakeImmutable(io::Printer* printer);
-  void GenerateDynamicMethodMergeFrom(io::Printer* printer);
+  void GenerateDynamicMethodVisit(io::Printer* printer);
+  void GenerateDynamicMethodMergeFromStream(io::Printer* printer);
   void GenerateDynamicMethodNewBuilder(io::Printer* printer);
   void GenerateInitializers(io::Printer* printer);
   void GenerateEqualsAndHashCode(io::Printer* printer);
   void GenerateParser(io::Printer* printer);
-  void GenerateParsingConstructor(io::Printer* printer);
+  void GenerateConstructor(io::Printer* printer);
 
   Context* context_;
   ClassNameResolver* name_resolver_;
@@ -87,6 +87,6 @@ class ImmutableMessageLiteGenerator : public MessageGenerator {
 }  // namespace java
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_JAVA_MESSAGE_LITE_H__

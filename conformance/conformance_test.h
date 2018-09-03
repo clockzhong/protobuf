@@ -40,17 +40,24 @@
 
 #include <functional>
 #include <string>
+
+#include <google/protobuf/descriptor.h>
 #include <google/protobuf/stubs/common.h>
 #include <google/protobuf/util/type_resolver.h>
 #include <google/protobuf/wire_format_lite.h>
 
-#include "third_party/jsoncpp/json.h"
+#include "conformance.pb.h"
 
 namespace conformance {
 class ConformanceRequest;
 class ConformanceResponse;
-class TestAllTypes;
 }  // namespace conformance
+
+namespace protobuf_test_messages {
+namespace proto3 {
+class TestAllTypesProto3;
+}  // namespace proto3
+}  // namespace protobuf_test_messages
 
 namespace google {
 namespace protobuf {
@@ -72,7 +79,23 @@ class ConformanceTestRunner {
 };
 
 // Class representing the test suite itself.  To run it, implement your own
-// class derived from ConformanceTestRunner and then write code like:
+// class derived from ConformanceTestRunner, class derived from
+// ConformanceTestSuite and then write code like:
+//
+//    class MyConformanceTestSuite : public ConformanceTestSuite {
+//     public:
+//      void RunSuiteImpl() {
+//        // INSERT ACTURAL TESTS.
+//      }
+//    };
+//
+//    // Force MyConformanceTestSuite to be added at dynamic initialization
+//    // time.
+//    struct StaticTestSuiteInitializer {
+//      StaticTestSuiteInitializer() {
+//        AddTestSuite(new MyConformanceTestSuite());
+//      }
+//    } static_test_suite_initializer;
 //
 //    class MyConformanceTestRunner : public ConformanceTestRunner {
 //     public:
@@ -83,22 +106,40 @@ class ConformanceTestRunner {
 //
 //    int main() {
 //      MyConformanceTestRunner runner;
-//      google::protobuf::ConformanceTestSuite suite;
-//
-//      std::string output;
-//      suite.RunSuite(&runner, &output);
+//      const std::set<ConformanceTestSuite*>& test_suite_set =
+//          ::google::protobuf::GetTestSuiteSet();
+//      for (auto suite : test_suite_set) {
+//        suite->RunSuite(&runner, &output);
+//      }
 //    }
 //
 class ConformanceTestSuite {
  public:
-  ConformanceTestSuite() : verbose_(false) {}
+  ConformanceTestSuite() : verbose_(false), enforce_recommended_(false) {}
+  virtual ~ConformanceTestSuite() {}
 
   void SetVerbose(bool verbose) { verbose_ = verbose; }
 
   // Sets the list of tests that are expected to fail when RunSuite() is called.
   // RunSuite() will fail unless the set of failing tests is exactly the same
   // as this list.
-  void SetFailureList(const std::vector<std::string>& failure_list);
+  //
+  // The filename here is *only* used to create/format useful error messages for
+  // how to update the failure list.  We do NOT read this file at all.
+  void SetFailureList(const std::string& filename,
+                      const std::vector<std::string>& failure_list);
+
+  // Whether to require the testee to pass RECOMMENDED tests. By default failing
+  // a RECOMMENDED test case will not fail the entire suite but will only
+  // generated a warning. If this flag is set to true, RECOMMENDED tests will
+  // be treated the same way as REQUIRED tests and failing a RECOMMENDED test
+  // case will cause the entire test suite to fail as well. An implementation
+  // can enable this if it wants to be strictly conforming to protobuf spec.
+  // See the comments about ConformanceLevel below to learn more about the
+  // difference between REQUIRED and RECOMMENDED test cases.
+  void SetEnforceRecommended(bool value) {
+    enforce_recommended_ = value;
+  }
 
   // Run all the conformance tests against the given test runner.
   // Test output will be stored in "output".
@@ -108,47 +149,93 @@ class ConformanceTestSuite {
   // tests passed.
   bool RunSuite(ConformanceTestRunner* runner, std::string* output);
 
- private:
+ protected:
+  // Test cases are classified into a few categories:
+  //   REQUIRED: the test case must be passed for an implementation to be
+  //             interoperable with other implementations. For example, a
+  //             parser implementaiton must accept both packed and unpacked
+  //             form of repeated primitive fields.
+  //   RECOMMENDED: the test case is not required for the implementation to
+  //                be interoperable with other implementations, but is
+  //                recommended for best performance and compatibility. For
+  //                example, a proto3 serializer should serialize repeated
+  //                primitive fields in packed form, but an implementation
+  //                failing to do so will still be able to communicate with
+  //                other implementations.
+  enum ConformanceLevel {
+    REQUIRED = 0,
+    RECOMMENDED = 1,
+  };
+
+  class ConformanceRequestSetting {
+   public:
+    ConformanceRequestSetting(
+        ConformanceLevel level,
+        conformance::WireFormat input_format,
+        conformance::WireFormat output_format,
+        conformance::TestCategory test_category,
+        const Message& prototype_message,
+        const string& test_name, const string& input);
+    virtual ~ConformanceRequestSetting() {}
+
+    Message* GetTestMessage() const;
+
+    string GetTestName() const;
+
+    const conformance::ConformanceRequest& GetRequest() const {
+      return request_;
+    }
+
+    const ConformanceLevel GetLevel() const {
+      return level_;
+    }
+
+    string ConformanceLevelToString(ConformanceLevel level) const;
+
+   protected:
+    virtual string InputFormatString(conformance::WireFormat format) const;
+    virtual string OutputFormatString(conformance::WireFormat format) const;
+
+   private:
+    ConformanceLevel level_;
+    ::conformance::WireFormat input_format_;
+    ::conformance::WireFormat output_format_;
+    const Message& prototype_message_;
+    string test_name_;
+    conformance::ConformanceRequest request_;
+  };
+
+  bool CheckSetEmpty(const std::set<string>& set_to_check,
+                     const std::string& write_to_file, const std::string& msg);
+
   void ReportSuccess(const std::string& test_name);
   void ReportFailure(const string& test_name,
+                     ConformanceLevel level,
                      const conformance::ConformanceRequest& request,
                      const conformance::ConformanceResponse& response,
                      const char* fmt, ...);
   void ReportSkip(const string& test_name,
                   const conformance::ConformanceRequest& request,
                   const conformance::ConformanceResponse& response);
+
+  void RunValidInputTest(const ConformanceRequestSetting& setting,
+                         const string& equivalent_text_format);
+  void RunValidBinaryInputTest(const ConformanceRequestSetting& setting,
+                               const string& equivalent_wire_format);
+
   void RunTest(const std::string& test_name,
                const conformance::ConformanceRequest& request,
                conformance::ConformanceResponse* response);
-  void RunValidInputTest(const string& test_name, const string& input,
-                         conformance::WireFormat input_format,
-                         const string& equivalent_text_format,
-                         conformance::WireFormat requested_output);
-  void RunValidJsonTest(const string& test_name, const string& input_json,
-                        const string& equivalent_text_format);
-  void RunValidJsonTestWithProtobufInput(const string& test_name,
-                                         const conformance::TestAllTypes& input,
-                                         const string& equivalent_text_format);
 
-  typedef std::function<bool(const Json::Value&)> Validator;
-  void RunValidJsonTestWithValidator(const string& test_name,
-                                     const string& input_json,
-                                     const Validator& validator);
-  void ExpectParseFailureForJson(const string& test_name,
-                                 const string& input_json);
-  void ExpectSerializeFailureForJson(const string& test_name,
-                                     const string& text_format);
-  void ExpectParseFailureForProto(const std::string& proto,
-                                  const std::string& test_name);
-  void ExpectHardParseFailureForProto(const std::string& proto,
-                                      const std::string& test_name);
-  void TestPrematureEOFForType(google::protobuf::FieldDescriptor::Type type);
-  bool CheckSetEmpty(const set<string>& set_to_check, const char* msg);
+  virtual void RunSuiteImpl() = 0;
+
   ConformanceTestRunner* runner_;
   int successes_;
   int expected_failures_;
   bool verbose_;
+  bool enforce_recommended_;
   std::string output_;
+  std::string failure_list_filename_;
 
   // The set of test names that are expected to fail in this run, but haven't
   // failed yet.
@@ -167,10 +254,13 @@ class ConformanceTestSuite {
   // The set of tests that the testee opted out of;
   std::set<std::string> skipped_;
 
-  google::protobuf::internal::scoped_ptr<google::protobuf::util::TypeResolver>
+  std::unique_ptr<google::protobuf::util::TypeResolver>
       type_resolver_;
   std::string type_url_;
 };
+
+void AddTestSuite(ConformanceTestSuite* suite);
+const std::set<ConformanceTestSuite*>& GetTestSuiteSet();
 
 }  // namespace protobuf
 }  // namespace google

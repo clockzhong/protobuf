@@ -37,9 +37,6 @@
 
 #include <map>
 #include <memory>
-#ifndef _SHARED_PTR_H
-#include <google/protobuf/stubs/shared_ptr.h>
-#endif
 #include <string>
 
 #include <google/protobuf/stubs/common.h>
@@ -48,17 +45,19 @@
 
 namespace google {
 namespace protobuf {
-  namespace compiler {
-    namespace java {
-      class Context;                // context.h
-      class ClassNameResolver;      // name_resolver.h
-    }
-  }
-  namespace io {
-    class Printer;                  // printer.h
-  }
+namespace compiler {
+namespace java {
+class Context;            // context.h
+class ClassNameResolver;  // name_resolver.h
+}  // namespace java
+}  // namespace compiler
+namespace io {
+class Printer;  // printer.h
 }
+}  // namespace protobuf
+}  // namespace google
 
+namespace google {
 namespace protobuf {
 namespace compiler {
 namespace java {
@@ -82,8 +81,8 @@ class ImmutableFieldGenerator {
   virtual void GenerateParsingDoneCode(io::Printer* printer) const = 0;
   virtual void GenerateSerializationCode(io::Printer* printer) const = 0;
   virtual void GenerateSerializedSizeCode(io::Printer* printer) const = 0;
-  virtual void GenerateFieldBuilderInitializationCode(io::Printer* printer)
-      const = 0;
+  virtual void GenerateFieldBuilderInitializationCode(
+      io::Printer* printer) const = 0;
 
   virtual void GenerateEqualsCode(io::Printer* printer) const = 0;
   virtual void GenerateHashCode(io::Printer* printer) const = 0;
@@ -100,12 +99,11 @@ class ImmutableFieldLiteGenerator {
   virtual ~ImmutableFieldLiteGenerator();
 
   virtual int GetNumBitsForMessage() const = 0;
-  virtual int GetNumBitsForBuilder() const = 0;
   virtual void GenerateInterfaceMembers(io::Printer* printer) const = 0;
   virtual void GenerateMembers(io::Printer* printer) const = 0;
   virtual void GenerateBuilderMembers(io::Printer* printer) const = 0;
   virtual void GenerateInitializationCode(io::Printer* printer) const = 0;
-  virtual void GenerateMergingCode(io::Printer* printer) const = 0;
+  virtual void GenerateVisitCode(io::Printer* printer) const = 0;
   virtual void GenerateDynamicMethodMakeImmutableCode(io::Printer* printer)
       const = 0;
   virtual void GenerateParsingCode(io::Printer* printer) const = 0;
@@ -118,6 +116,7 @@ class ImmutableFieldLiteGenerator {
 
   virtual void GenerateEqualsCode(io::Printer* printer) const = 0;
   virtual void GenerateHashCode(io::Printer* printer) const = 0;
+
 
   virtual string GetBoxedType() const = 0;
 
@@ -140,7 +139,7 @@ class FieldGeneratorMap {
   const Descriptor* descriptor_;
   Context* context_;
   ClassNameResolver* name_resolver_;
-  google::protobuf::scoped_array<google::protobuf::scoped_ptr<FieldGeneratorType> > field_generators_;
+  std::vector<std::unique_ptr<FieldGeneratorType>> field_generators_;
 
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(FieldGeneratorMap);
 };
@@ -162,6 +161,14 @@ template<>
 FieldGeneratorMap<ImmutableFieldGenerator>::~FieldGeneratorMap();
 
 
+template <>
+FieldGeneratorMap<ImmutableFieldLiteGenerator>::FieldGeneratorMap(
+    const Descriptor* descriptor, Context* context);
+
+template <>
+FieldGeneratorMap<ImmutableFieldLiteGenerator>::~FieldGeneratorMap();
+
+
 // Field information used in FieldGeneartors.
 struct FieldGeneratorInfo {
   string name;
@@ -169,7 +176,7 @@ struct FieldGeneratorInfo {
   string disambiguated_reason;
 };
 
-// Oneof information used in OneofFieldGeneartors.
+// Oneof information used in OneofFieldGenerators.
 struct OneofGeneratorInfo {
   string name;
   string capitalized_name;
@@ -178,20 +185,20 @@ struct OneofGeneratorInfo {
 // Set some common variables used in variable FieldGenerators.
 void SetCommonFieldVariables(const FieldDescriptor* descriptor,
                              const FieldGeneratorInfo* info,
-                             map<string, string>* variables);
+                             std::map<string, string>* variables);
 
 // Set some common oneof variables used in OneofFieldGenerators.
 void SetCommonOneofVariables(const FieldDescriptor* descriptor,
                              const OneofGeneratorInfo* info,
-                             map<string, string>* variables);
+                             std::map<string, string>* variables);
 
 // Print useful comments before a field's accessors.
-void PrintExtraFieldInfo(const map<string, string>& variables,
+void PrintExtraFieldInfo(const std::map<string, string>& variables,
                          io::Printer* printer);
 
 }  // namespace java
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_JAVA_FIELD_H__

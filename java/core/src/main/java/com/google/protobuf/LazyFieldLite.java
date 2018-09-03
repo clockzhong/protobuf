@@ -135,6 +135,43 @@ public class LazyFieldLite {
     return lf;
   }
 
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    
+    if (!(o instanceof LazyFieldLite)) {
+      return false;
+    }
+
+    LazyFieldLite other = (LazyFieldLite) o;
+    
+    // Lazy fields do not work well with equals... If both are delayedBytes, we do not have a
+    // mechanism to deserialize them so we rely on bytes equality. Otherwise we coerce into an
+    // actual message (if necessary) and call equals on the message itself. This implies that two
+    // messages can by unequal but then be turned equal simply be invoking a getter on a lazy field.
+    MessageLite value1 = value;
+    MessageLite value2 = other.value;
+    if (value1 == null && value2 == null) {
+      return toByteString().equals(other.toByteString());
+    } else if (value1 != null && value2 != null) {
+      return value1.equals(value2);
+    } else if (value1 != null) {
+      return value1.equals(other.getValue(value1.getDefaultInstanceForType()));
+    } else {
+      return getValue(value2.getDefaultInstanceForType()).equals(value2);
+    }
+  }
+  
+  @Override
+  public int hashCode() {
+    // We can't provide a memoizable hash code for lazy fields. The byte strings may have different
+    // hash codes but evaluate to equivalent messages. And we have no facility for constructing
+    // a message here if we were not already holding a value.
+    return 1;
+  }
+  
   /**
    * Determines whether this LazyFieldLite instance represents the default instance of this type.
    */
@@ -247,29 +284,8 @@ public class LazyFieldLite {
       return;
     }
 
-    // At this point we have two fully parsed messages. We can't merge directly from one to the
-    // other because only generated builder code contains methods to mergeFrom another parsed
-    // message. We have to serialize one instance and then merge the bytes into the other. This may
-    // drop extensions from one of the messages if one of the values had an extension set on it
-    // directly.
-    //
-    // To mitigate this we prefer serializing a message that has an extension registry, and
-    // therefore a chance that all extensions set on it are in that registry.
-    //
-    // NOTE: The check for other.extensionRegistry not being null must come first because at this
-    // point in time if other.extensionRegistry is not null then this.extensionRegistry will not be
-    // null either.
-    if (other.extensionRegistry != null) {
-      setValue(mergeValueAndBytes(this.value, other.toByteString(), other.extensionRegistry));
-      return;
-    } else if (this.extensionRegistry != null) {
-      setValue(mergeValueAndBytes(other.value, this.toByteString(), this.extensionRegistry));
-      return;
-    } else {
-      // All extensions from the other message will be dropped because we have no registry.
-      setValue(mergeValueAndBytes(this.value, other.toByteString(), EMPTY_REGISTRY));
-      return;
-    }
+    // At this point we have two fully parsed messages.
+    setValue(this.value.toBuilder().mergeFrom(other.value).build());
   }
   
   /**
@@ -340,6 +356,8 @@ public class LazyFieldLite {
    * parsed. Be careful when using this method.
    */
   public int getSerializedSize() {
+    // We *must* return delayed bytes size if it was ever set because the dependent messages may
+    // have memoized serialized size based off of it.
     if (memoizedBytes != null) {
       return memoizedBytes.size();
     } else if (delayedBytes != null) {
@@ -358,6 +376,8 @@ public class LazyFieldLite {
     if (memoizedBytes != null) {
       return memoizedBytes;
     }
+    // We *must* return delayed bytes if it was set because the dependent messages may have
+    // memoized serialized size based off of it.
     if (delayedBytes != null) {
       return delayedBytes;
     }
@@ -373,6 +393,7 @@ public class LazyFieldLite {
       return memoizedBytes;
     }
   }
+
 
   /**
    * Might lazily parse the bytes that were previously passed in. Is thread-safe.

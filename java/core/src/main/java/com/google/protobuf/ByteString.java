@@ -46,19 +46,18 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
 /**
- * Immutable sequence of bytes.  Substring is supported by sharing the reference
- * to the immutable underlying bytes, as with {@link String}.  Concatenation is
- * likewise supported without copying (long strings) by building a tree of
- * pieces in {@link RopeByteString}.
- * <p>
- * Like {@link String}, the contents of a {@link ByteString} can never be
- * observed to change, not even in the presence of a data race or incorrect
- * API usage in the client code.
+ * Immutable sequence of bytes. Substring is supported by sharing the reference to the immutable
+ * underlying bytes. Concatenation is likewise supported without copying (long strings) by building
+ * a tree of pieces in {@link RopeByteString}.
+ *
+ * <p>Like {@link String}, the contents of a {@link ByteString} can never be observed to change, not
+ * even in the presence of a data race or incorrect API usage in the client code.
  *
  * @author crazybob@google.com Bob Lee
  * @author kenton@google.com Kenton Varda
@@ -87,17 +86,17 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
    * Empty {@code ByteString}.
    */
   public static final ByteString EMPTY = new LiteralByteString(Internal.EMPTY_BYTE_ARRAY);
-  
-  /** 
+
+  /**
    * An interface to efficiently copy {@code byte[]}.
-   * 
-   * <p>One of the noticable costs of copying a byte[] into a new array using 
-   * {@code System.arraycopy} is nullification of a new buffer before the copy. It has been shown 
+   *
+   * <p>One of the noticeable costs of copying a byte[] into a new array using
+   * {@code System.arraycopy} is nullification of a new buffer before the copy. It has been shown
    * the Hotspot VM is capable to intrisicfy {@code Arrays.copyOfRange} operation to avoid this
    * expensive nullification and provide substantial performance gain. Unfortunately this does not
    * hold on Android runtimes and could make the copy slightly slower due to additional code in
    * the {@code Arrays.copyOfRange}. Thus we provide two different implementation for array copier
-   * for Hotspot and Android runtimes. 
+   * for Hotspot and Android runtimes.
    */
   private interface ByteArrayCopier {
     /**
@@ -105,7 +104,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
      */
     byte[] copyFrom(byte[] bytes, int offset, int size);
   }
-  
+
   /** Implementation of {@code ByteArrayCopier} which uses {@link System#arraycopy}. */
   private static final class SystemByteArrayCopier implements ByteArrayCopier {
     @Override
@@ -115,7 +114,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
       return copy;
     }
   }
-  
+
   /** Implementation of {@code ByteArrayCopier} which uses {@link Arrays#copyOfRange}. */
   private static final class ArraysByteArrayCopier implements ByteArrayCopier {
     @Override
@@ -123,17 +122,11 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
       return Arrays.copyOfRange(bytes, offset, offset + size);
     }
   }
-  
+
   private static final ByteArrayCopier byteArrayCopier;
   static {
-    boolean isAndroid = true;
-    try {
-      Class.forName("android.content.Context");
-    } catch (ClassNotFoundException e) {
-      isAndroid = false;
-    }
-    
-    byteArrayCopier = isAndroid ? new SystemByteArrayCopier() : new ArraysByteArrayCopier();
+    byteArrayCopier =
+        Android.isOnAndroidDevice() ? new SystemByteArrayCopier() : new ArraysByteArrayCopier();
   }
 
   /**
@@ -230,6 +223,67 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   }
 
   // =================================================================
+  // Comparison
+
+  private static final int UNSIGNED_BYTE_MASK = 0xFF;
+
+  /**
+   * Returns the value of the given byte as an integer, interpreting the byte as an unsigned value.
+   * That is, returns {@code value + 256} if {@code value} is negative; {@code value} itself
+   * otherwise.
+   *
+   * <p>Note: This code was copied from {@link com.google.common.primitives.UnsignedBytes#toInt}, as
+   * Guava libraries cannot be used in the {@code com.google.protobuf} package.
+   */
+  private static int toInt(byte value) {
+    return value & UNSIGNED_BYTE_MASK;
+  }
+
+  /**
+   * Compares two {@link ByteString}s lexicographically, treating their contents as unsigned byte
+   * values between 0 and 255 (inclusive).
+   *
+   * <p>For example, {@code (byte) -1} is considered to be greater than {@code (byte) 1} because
+   * it is interpreted as an unsigned value, {@code 255}.
+   */
+  private static final Comparator<ByteString> UNSIGNED_LEXICOGRAPHICAL_COMPARATOR =
+      new Comparator<ByteString>() {
+        @Override
+        public int compare(ByteString former, ByteString latter) {
+          ByteIterator formerBytes = former.iterator();
+          ByteIterator latterBytes = latter.iterator();
+
+          while (formerBytes.hasNext() && latterBytes.hasNext()) {
+            // Note: This code was copied from com.google.common.primitives.UnsignedBytes#compare,
+            // as Guava libraries cannot be used in the {@code com.google.protobuf} package.
+            int result =
+                Integer.compare(toInt(formerBytes.nextByte()), toInt(latterBytes.nextByte()));
+            if (result != 0) {
+              return result;
+            }
+          }
+
+          return Integer.compare(former.size(), latter.size());
+        }
+      };
+
+  /**
+   * Returns a {@link Comparator<ByteString>} which compares {@link ByteString}-s lexicographically
+   * as sequences of unsigned bytes (i.e. values between 0 and 255, inclusive).
+   *
+   * <p>For example, {@code (byte) -1} is considered to be greater than {@code (byte) 1} because
+   * it is interpreted as an unsigned value, {@code 255}:
+   *
+   * <ul>
+   * <li>{@code `-1` -> 0b11111111 (two's complement) -> 255}
+   * <li>{@code `1` -> 0b00000001 -> 1}
+   * </ul>
+   */
+  public static Comparator<ByteString> unsignedLexicographicalComparator() {
+    return UNSIGNED_LEXICOGRAPHICAL_COMPARATOR;
+  }
+
+  // =================================================================
   // ByteString -> substring
 
   /**
@@ -295,8 +349,10 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
    * @param offset offset in source array
    * @param size number of bytes to copy
    * @return new {@code ByteString}
+   * @throws IndexOutOfBoundsException if {@code offset} or {@code size} are out of bounds
    */
   public static ByteString copyFrom(byte[] bytes, int offset, int size) {
+    checkRange(offset, offset + size, bytes.length);
     return new LiteralByteString(byteArrayCopier.copyFrom(bytes, offset, size));
   }
 
@@ -309,7 +365,19 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   public static ByteString copyFrom(byte[] bytes) {
     return copyFrom(bytes, 0, bytes.length);
   }
-  
+
+  /**
+   * Wraps the given bytes into a {@code ByteString}. Intended for internal only usage.
+   */
+  static ByteString wrap(ByteBuffer buffer) {
+    if (buffer.hasArray()) {
+      final int offset = buffer.arrayOffset();
+      return ByteString.wrap(buffer.array(), offset + buffer.position(), buffer.remaining());
+    } else {
+      return new NioByteString(buffer);
+    }
+  }
+
   /**
    * Wraps the given bytes into a {@code ByteString}. Intended for internal only
    * usage to force a classload of ByteString before LiteralByteString.
@@ -335,8 +403,10 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
    * @param bytes source buffer
    * @param size number of bytes to copy
    * @return new {@code ByteString}
+   * @throws IndexOutOfBoundsException if {@code size > bytes.remaining()}
    */
   public static ByteString copyFrom(ByteBuffer bytes, int size) {
+    checkRange(0, size, bytes.remaining());
     byte[] copy = new byte[size];
     bytes.get(copy);
     return new LiteralByteString(copy);
@@ -402,7 +472,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
    * immutable tree of byte arrays ("chunks") of the stream data.  The
    * first chunk is small, with subsequent chunks each being double
    * the size, up to 8K.
-   * 
+   *
    * <p>Each byte read from the input stream will be copied twice to ensure
    * that the resulting ByteString is truly immutable.
    *
@@ -553,7 +623,9 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   // Create a balanced concatenation of the next "length" elements from the
   // iterable.
   private static ByteString balancedConcat(Iterator<ByteString> iterator, int length) {
-    assert length >= 1;
+    if (length < 1) {
+      throw new IllegalArgumentException(String.format("length (%s) must be >= 1", length));
+    }
     ByteString result;
     if (length == 1) {
       result = iterator.next();
@@ -572,6 +644,9 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   /**
    * Copies bytes into a buffer at the given offset.
    *
+   * <p>To copy a subset of bytes, you call this method on the return value of {@link
+   * #substring(int, int)}. Example: {@code byteString.substring(start, end).copyTo(target, offset)}
+   *
    * @param target buffer to copy into
    * @param offset in the target buffer
    * @throws IndexOutOfBoundsException if the offset is negative or too large
@@ -583,15 +658,16 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   /**
    * Copies bytes into a buffer.
    *
-   * @param target       buffer to copy into
+   * @param target buffer to copy into
    * @param sourceOffset offset within these bytes
    * @param targetOffset offset within the target buffer
    * @param numberToCopy number of bytes to copy
-   * @throws IndexOutOfBoundsException if an offset or size is negative or too
-   *     large
+   * @throws IndexOutOfBoundsException if an offset or size is negative or too large
+   * @deprecation Instead, call {@code byteString.substring(sourceOffset, sourceOffset +
+   *     numberToCopy).copyTo(target, targetOffset)}
    */
-  public final void copyTo(byte[] target, int sourceOffset, int targetOffset,
-      int numberToCopy) {
+  @Deprecated
+  public final void copyTo(byte[] target, int sourceOffset, int targetOffset, int numberToCopy) {
     checkRange(sourceOffset, sourceOffset + numberToCopy, size());
     checkRange(targetOffset, targetOffset + numberToCopy, target.length);
     if (numberToCopy > 0) {
@@ -611,10 +687,13 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
   /**
    * Copies bytes into a ByteBuffer.
    *
+   * <p>To copy a subset of bytes, you call this method on the return value of {@link
+   * #substring(int, int)}. Example: {@code byteString.substring(start, end).copyTo(target)}
+   *
    * @param target ByteBuffer to copy into.
    * @throws java.nio.ReadOnlyBufferException if the {@code target} is read-only
-   * @throws java.nio.BufferOverflowException if the {@code target}'s
-   *     remaining() space is not large enough to hold the data.
+   * @throws java.nio.BufferOverflowException if the {@code target}'s remaining() space is not large
+   *     enough to hold the data.
    */
   public abstract void copyTo(ByteBuffer target);
 
@@ -678,6 +757,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
    * @see UnsafeByteOperations#unsafeWriteTo(ByteString, ByteOutput)
    */
   abstract void writeTo(ByteOutput byteOutput) throws IOException;
+
 
   /**
    * Constructs a read-only {@code java.nio.ByteBuffer} whose content
@@ -819,6 +899,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
     protected final boolean isBalanced() {
       return true;
     }
+
 
     /**
      * Check equality of the substring of given length of this object starting at
@@ -1226,7 +1307,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
     return String.format("<ByteString@%s size=%d>",
         Integer.toHexString(System.identityHashCode(this)), size());
   }
-  
+
   /**
    * This class implements a {@link com.google.protobuf.ByteString} backed by a
    * single array of bytes, contiguous in memory. It supports substring by
@@ -1250,6 +1331,9 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
      * @param bytes array to wrap
      */
     LiteralByteString(byte[] bytes) {
+      if (bytes == null) {
+        throw new NullPointerException();
+      }
       this.bytes = bytes;
     }
 
@@ -1450,7 +1534,7 @@ public abstract class ByteString implements Iterable<Byte>, Serializable {
       return 0;
     }
   }
-  
+
   /**
    * This class is used to represent the substring of a {@link ByteString} over a
    * single byte array. In terms of the public API of {@link ByteString}, you end

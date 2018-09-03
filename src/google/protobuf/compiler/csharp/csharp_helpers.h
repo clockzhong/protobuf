@@ -96,7 +96,7 @@ std::string UnderscoresToPascalCase(const std::string& input);
 
 // Note that we wouldn't normally want to export this (we're not expecting
 // it to be used outside libprotoc itself) but this exposes it for testing.
-std::string LIBPROTOBUF_EXPORT GetEnumValueName(const std::string& enum_name, const std::string& enum_value_name);
+std::string LIBPROTOC_EXPORT GetEnumValueName(const std::string& enum_name, const std::string& enum_value_name);
 
 // TODO(jtattermusch): perhaps we could move this to strutil
 std::string StringToBase64(const std::string& input);
@@ -118,6 +118,22 @@ inline bool IsMapEntryMessage(const Descriptor* descriptor) {
 // allowed to use proto2 syntax, and it generates internal classes.
 inline bool IsDescriptorProto(const FileDescriptor* descriptor) {
   return descriptor->name() == "google/protobuf/descriptor.proto";
+}
+
+// Determines whether the given message is an options message within descriptor.proto.
+inline bool IsDescriptorOptionMessage(const Descriptor* descriptor) {
+  if (!IsDescriptorProto(descriptor->file())) {
+    return false;
+  }
+  const string name = descriptor->full_name();
+  return name == "google.protobuf.FileOptions" ||
+      name == "google.protobuf.MessageOptions" ||
+      name == "google.protobuf.FieldOptions" ||
+      name == "google.protobuf.OneofOptions" ||
+      name == "google.protobuf.EnumOptions" ||
+      name == "google.protobuf.EnumValueOptions" ||
+      name == "google.protobuf.ServiceOptions" ||
+      name == "google.protobuf.MethodOptions";
 }
 
 inline bool IsWrapperType(const FieldDescriptor* descriptor) {

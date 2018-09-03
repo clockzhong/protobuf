@@ -41,6 +41,10 @@
 #include <google/protobuf/stubs/common.h>
 #include <google/protobuf/message.h>
 
+#ifdef SWIG
+#error "You cannot SWIG proto headers"
+#endif
+
 namespace google {
 namespace protobuf {
 namespace internal {
@@ -67,7 +71,7 @@ class LIBPROTOBUF_EXPORT ReflectionOps {
   // the front of each name.
   static void FindInitializationErrors(const Message& message,
                                        const string& prefix,
-                                       vector<string>* errors);
+                                       std::vector<string>* errors);
 
  private:
   // All methods are static.  No need to construct.
@@ -76,6 +80,6 @@ class LIBPROTOBUF_EXPORT ReflectionOps {
 
 }  // namespace internal
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_REFLECTION_OPS_H__

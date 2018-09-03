@@ -38,11 +38,11 @@
 #include <google/protobuf/stubs/stringpiece.h>
 #include <google/protobuf/stubs/status.h>
 
-namespace google {
 namespace util {
 class Status;
 }  // namespace util
 
+namespace google {
 namespace protobuf {
 namespace util {
 namespace converter {
@@ -83,7 +83,18 @@ class LIBPROTOBUF_EXPORT JsonStreamParser {
   util::Status FinishParse();
 
 
+  // Sets the max recursion depth of JSON message to be deserialized. JSON
+  // messages over this depth will fail to be deserialized.
+  // Default value is 100.
+  void set_max_recursion_depth(int max_depth) {
+    max_recursion_depth_ = max_depth;
+  }
+
  private:
+  friend class JsonStreamParserTest;
+  // Return the current recursion depth.
+  const int recursion_depth() { return recursion_depth_; }
+
   enum TokenType {
     BEGIN_STRING,     // " or '
     BEGIN_NUMBER,     // - or digit
@@ -154,6 +165,9 @@ class LIBPROTOBUF_EXPORT JsonStreamParser {
   // component.
   util::Status ParseNumberHelper(NumberResult* result);
 
+  // Parse a number as double into a NumberResult.
+  util::Status ParseDoubleHelper(const string& number, NumberResult* result);
+
   // Handles a { during parsing of a value.
   util::Status HandleBeginObject();
 
@@ -179,6 +193,10 @@ class LIBPROTOBUF_EXPORT JsonStreamParser {
   util::Status ParseTrue();
   util::Status ParseFalse();
   util::Status ParseNull();
+  util::Status ParseEmptyNull();
+
+  // Whether an empty-null is allowed in the current state.
+  bool IsEmptyNullAllowed(TokenType type);
 
   // Report a failure as a util::Status.
   util::Status ReportFailure(StringPiece message);
@@ -187,6 +205,11 @@ class LIBPROTOBUF_EXPORT JsonStreamParser {
   // end of the stream and if we're finishing or not to detect what type of
   // status to return in this case.
   util::Status ReportUnknown(StringPiece message);
+
+  // Helper function to check recursion depth and increment it. It will return
+  // Status::OK if the current depth is allowed. Otherwise an error is returned.
+  // key is used for error reporting.
+  util::Status IncrementRecursionDepth(StringPiece key) const;
 
   // Advance p_ past all whitespace or until the end of the string.
   void SkipWhitespace();
@@ -247,12 +270,25 @@ class LIBPROTOBUF_EXPORT JsonStreamParser {
   // Whether to allow non UTF-8 encoded input and replace invalid code points.
   bool coerce_to_utf8_;
 
+  // Whether allows empty string represented null array value or object entry
+  // value.
+  bool allow_empty_null_;
+
+  // Whether allows out-of-range floating point numbers or reject them.
+  bool loose_float_number_conversion_;
+
+  // Tracks current recursion depth.
+  mutable int recursion_depth_;
+
+  // Maximum allowed recursion depth.
+  int max_recursion_depth_;
+
   GOOGLE_DISALLOW_IMPLICIT_CONSTRUCTORS(JsonStreamParser);
 };
 
 }  // namespace converter
 }  // namespace util
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_UTIL_CONVERTER_JSON_STREAM_PARSER_H__

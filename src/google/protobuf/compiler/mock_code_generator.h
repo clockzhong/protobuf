@@ -41,7 +41,9 @@ namespace google {
 namespace protobuf {
 class FileDescriptor;
 }  // namespace protobuf
+}  // namespace google
 
+namespace google {
 namespace protobuf {
 namespace compiler {
 
@@ -68,6 +70,8 @@ namespace compiler {
 //     printing "Saw message type MockCodeGenerator_HasSourceCodeInfo: FOO." to
 //     stderr, where FOO is "1" if the supplied FileDescriptorProto has source
 //     code info, and "0" otherwise.
+//   MockCodeGenerator_Annotate:  Generate() will add annotations to its output
+//     that can later be verified with CheckGeneratedAnnotations.
 class MockCodeGenerator : public CodeGenerator {
  public:
   MockCodeGenerator(const string& name);
@@ -87,6 +91,12 @@ class MockCodeGenerator : public CodeGenerator {
                               const string& first_message_name,
                               const string& parsed_file_list,
                               const string& output_directory);
+
+  // Checks that the correct text ranges were annotated by the
+  // MockCodeGenerator_Annotate directive.
+  static void CheckGeneratedAnnotations(const string& name,
+                                        const string& file,
+                                        const string& output_directory);
 
   // Get the name of the file which would be written by the given generator.
   static string GetOutputFileName(const string& generator_name,
@@ -117,6 +127,6 @@ class MockCodeGenerator : public CodeGenerator {
 
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_MOCK_CODE_GENERATOR_H__

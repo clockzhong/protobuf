@@ -37,16 +37,17 @@
 #include <google/protobuf/stubs/stringpiece.h>
 #include <google/protobuf/stubs/statusor.h>
 
-
 namespace google {
 namespace protobuf {
 class Enum;
 }  // namespace protobuf
+}  // namespace google
 
-
+namespace google {
 namespace protobuf {
 namespace util {
 namespace converter {
+class ProtoWriter;
 
 // Container for a single piece of data together with its data type.
 //
@@ -76,13 +77,22 @@ class LIBPROTOBUF_EXPORT DataPiece {
   };
 
   // Constructors and Destructor
-  explicit DataPiece(const int32 value) : type_(TYPE_INT32), i32_(value) {}
-  explicit DataPiece(const int64 value) : type_(TYPE_INT64), i64_(value) {}
-  explicit DataPiece(const uint32 value) : type_(TYPE_UINT32), u32_(value) {}
-  explicit DataPiece(const uint64 value) : type_(TYPE_UINT64), u64_(value) {}
-  explicit DataPiece(const double value) : type_(TYPE_DOUBLE), double_(value) {}
-  explicit DataPiece(const float value) : type_(TYPE_FLOAT), float_(value) {}
-  explicit DataPiece(const bool value) : type_(TYPE_BOOL), bool_(value) {}
+  explicit DataPiece(const int32 value)
+      : type_(TYPE_INT32), i32_(value), use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const int64 value)
+      : type_(TYPE_INT64), i64_(value), use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const uint32 value)
+      : type_(TYPE_UINT32), u32_(value), use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const uint64 value)
+      : type_(TYPE_UINT64), u64_(value), use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const double value)
+      : type_(TYPE_DOUBLE),
+        double_(value),
+        use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const float value)
+      : type_(TYPE_FLOAT), float_(value), use_strict_base64_decoding_(false) {}
+  explicit DataPiece(const bool value)
+      : type_(TYPE_BOOL), bool_(value), use_strict_base64_decoding_(false) {}
   DataPiece(StringPiece value, bool use_strict_base64_decoding)
       : type_(TYPE_STRING),
         str_(StringPiecePod::CreateFromStringPiece(value)),
@@ -92,10 +102,11 @@ class LIBPROTOBUF_EXPORT DataPiece {
       : type_(TYPE_BYTES),
         str_(StringPiecePod::CreateFromStringPiece(value)),
         use_strict_base64_decoding_(use_strict_base64_decoding) {}
-  DataPiece(const DataPiece& r) : type_(r.type_), str_(r.str_) {}
+
+  DataPiece(const DataPiece& r) : type_(r.type_) { InternalCopy(r); }
+
   DataPiece& operator=(const DataPiece& x) {
-    type_ = x.type_;
-    str_ = x.str_;
+    InternalCopy(x);
     return *this;
   }
 
@@ -106,6 +117,8 @@ class LIBPROTOBUF_EXPORT DataPiece {
 
   // Accessors
   Type type() const { return type_; }
+
+  bool use_strict_base64_decoding() { return use_strict_base64_decoding_; }
 
   StringPiece str() const {
     GOOGLE_LOG_IF(DFATAL, type_ != TYPE_STRING) << "Not a string type.";
@@ -147,16 +160,31 @@ class LIBPROTOBUF_EXPORT DataPiece {
   // string, first attempts conversion by name, trying names as follows:
   //   1) the directly provided string value.
   //   2) the value upper-cased and replacing '-' by '_'
+  //   3) if use_lower_camel_for_enums is true it also attempts by comparing
+  //   enum name without underscore with the value upper cased above.
   // If the value is not a string, attempts to convert to a 32-bit integer.
   // If none of these succeeds, returns a conversion error status.
-  util::StatusOr<int> ToEnum(const google::protobuf::Enum* enum_type) const;
+  util::StatusOr<int> ToEnum(const google::protobuf::Enum* enum_type,
+                               bool use_lower_camel_for_enums) const {
+    return ToEnum(enum_type, use_lower_camel_for_enums, false, nullptr);
+  }
 
  private:
+  friend class ProtoWriter;
+
   // Disallow implicit constructor.
   DataPiece();
 
   // Helper to create NULL or ENUM types.
-  DataPiece(Type type, int32 val) : type_(type), i32_(val) {}
+  DataPiece(Type type, int32 val)
+      : type_(type), i32_(val), use_strict_base64_decoding_(false) {}
+
+  // Same as the ToEnum() method above but with additional flag to ignore
+  // unknown enum values.
+  util::StatusOr<int> ToEnum(const google::protobuf::Enum* enum_type,
+                               bool use_lower_camel_for_enums,
+                               bool ignore_unknown_enum_values,
+                               bool* is_unknown_enum_value) const;
 
   // For numeric conversion between
   //     int32, int64, uint32, uint64, double, float and bool
@@ -166,10 +194,14 @@ class LIBPROTOBUF_EXPORT DataPiece {
   // For conversion from string to
   //     int32, int64, uint32, uint64, double, float and bool
   template <typename To>
-  util::StatusOr<To> StringToNumber(bool (*func)(StringPiece, To*)) const;
+  util::StatusOr<To> StringToNumber(bool (*func)(StringPiece,
+                                                   To*)) const;
 
   // Decodes a base64 string. Returns true on success.
   bool DecodeBase64(StringPiece src, string* dest) const;
+
+  // Helper function to initialize this DataPiece with 'other'.
+  void InternalCopy(const DataPiece& other);
 
   // Data type for this piece of data.
   Type type_;
@@ -195,6 +227,6 @@ class LIBPROTOBUF_EXPORT DataPiece {
 }  // namespace converter
 }  // namespace util
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_UTIL_CONVERTER_DATAPIECE_H__

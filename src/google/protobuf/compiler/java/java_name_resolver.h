@@ -112,7 +112,7 @@ class ClassNameResolver {
       const FileDescriptor* file,
       bool immutable);
   // Caches the result to provide better performance.
-  map<const FileDescriptor*, string> file_immutable_outer_class_names_;
+  std::map<const FileDescriptor*, string> file_immutable_outer_class_names_;
 
   GOOGLE_DISALLOW_EVIL_CONSTRUCTORS(ClassNameResolver);
 };
@@ -120,6 +120,6 @@ class ClassNameResolver {
 }  // namespace java
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_JAVA_NAME_RESOLVER_H__

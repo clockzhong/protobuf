@@ -1,15 +1,24 @@
-new_http_archive(
-    name = "gmock_archive",
-    url = "https://googlemock.googlecode.com/files/gmock-1.7.0.zip",
-    sha256 = "26fcbb5925b74ad5fc8c26b0495dfc96353f4d553492eb97e85a8a6d2f43095b",
-    build_file = "gmock.BUILD",
+workspace(name = "com_google_protobuf")
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+new_local_repository(
+    name = "submodule_gmock",
+    path = "third_party/googletest",
+    build_file = "@//:third_party/googletest/BUILD.bazel"
 )
 
-new_http_archive(
+http_archive(
     name = "six_archive",
-    url = "https://pypi.python.org/packages/source/s/six/six-1.10.0.tar.gz#md5=34eed507548117b2ab523ab14b2f8b55",
+    build_file = "@//:six.BUILD",
     sha256 = "105f8d68616f8248e24bf0e9372ef04d3cc10104f1980f54d57b2ce73a5ad56a",
-    build_file = "six.BUILD",
+    urls = ["https://pypi.python.org/packages/source/s/six/six-1.10.0.tar.gz#md5=34eed507548117b2ab523ab14b2f8b55"],
+)
+
+http_archive(
+    name = "bazel_skylib",
+    sha256 = "bbccf674aa441c266df9894182d80de104cabd19be98be002f6d478aaa31574d",
+    strip_prefix = "bazel-skylib-2169ae1c374aab4a09aa90e65efe1a3aad4e279b",
+    urls = ["https://github.com/bazelbuild/bazel-skylib/archive/2169ae1c374aab4a09aa90e65efe1a3aad4e279b.tar.gz"],
 )
 
 bind(
@@ -19,12 +28,12 @@ bind(
 
 bind(
     name = "gtest",
-    actual = "@gmock_archive//:gtest",
+    actual = "@submodule_gmock//:gtest",
 )
 
 bind(
     name = "gtest_main",
-    actual = "@gmock_archive//:gtest_main",
+    actual = "@submodule_gmock//:gtest_main",
 )
 
 bind(
@@ -33,8 +42,8 @@ bind(
 )
 
 maven_jar(
-  name = "guava_maven",
-  artifact = "com.google.guava:guava:18.0",
+    name = "guava_maven",
+    artifact = "com.google.guava:guava:18.0",
 )
 
 bind(
@@ -43,8 +52,8 @@ bind(
 )
 
 maven_jar(
-  name = "gson_maven",
-  artifact = "com.google.code.gson:gson:2.3",
+    name = "gson_maven",
+    artifact = "com.google.code.gson:gson:2.7",
 )
 
 bind(

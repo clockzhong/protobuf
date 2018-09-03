@@ -28,6 +28,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+// Defines a TypeResolver for the Any message.
+
 #ifndef GOOGLE_PROTOBUF_UTIL_TYPE_RESOLVER_H__
 #define GOOGLE_PROTOBUF_UTIL_TYPE_RESOLVER_H__
 
@@ -36,14 +38,14 @@
 #include <google/protobuf/stubs/common.h>
 #include <google/protobuf/stubs/status.h>
 
-
 namespace google {
 namespace protobuf {
 class Type;
 class Enum;
 }  // namespace protobuf
+}  // namespace google
 
-
+namespace google {
 namespace protobuf {
 class DescriptorPool;
 namespace util {
@@ -70,6 +72,6 @@ class LIBPROTOBUF_EXPORT TypeResolver {
 
 }  // namespace util
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_UTIL_TYPE_RESOLVER_H__

@@ -39,24 +39,34 @@
 namespace google {
 namespace protobuf {
 namespace compiler {
+class AccessInfoMap;
+
 namespace cpp {
 
 // Generator options (see generator.cc for a description of each):
 struct Options {
-  Options()
-      : safe_boundary_check(false), proto_h(false), annotate_headers(false) {}
   string dllexport_decl;
-  bool safe_boundary_check;
-  bool proto_h;
-  bool annotate_headers;
+  bool safe_boundary_check = false;
+  bool proto_h = false;
+  bool transitive_pb_h = true;
+  bool annotate_headers = false;
+  bool enforce_lite = false;
+  bool table_driven_parsing = false;
+  bool table_driven_serialization = false;
+  bool lite_implicit_weak_fields = false;
+  bool bootstrap = false;
+  bool opensource_runtime = false;
+  bool opensource_include_paths = false;
+  int num_cc_files = 0;
   string annotation_pragma_name;
   string annotation_guard_name;
+  const AccessInfoMap* access_info_map = nullptr;
 };
 
 }  // namespace cpp
 }  // namespace compiler
 }  // namespace protobuf
-
-
 }  // namespace google
+
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_CPP_OPTIONS_H__

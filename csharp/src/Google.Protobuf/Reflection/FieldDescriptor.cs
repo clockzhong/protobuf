@@ -97,7 +97,7 @@ namespace Google.Protobuf.Reflection
             // We could trust the generated code and check whether the type of the property is
             // a MapField, but that feels a tad nasty.
             this.propertyName = propertyName;
-            JsonName =  Proto.JsonName == "" ? JsonFormatter.ToCamelCase(Proto.Name) : Proto.JsonName;
+            JsonName =  Proto.JsonName == "" ? JsonFormatter.ToJsonName(Proto.Name) : Proto.JsonName;
         }
     
 
@@ -116,12 +116,17 @@ namespace Google.Protobuf.Reflection
         /// that is the responsibility of the accessor.
         /// </para>
         /// <para>
-        /// The value returned by this property will be non-null for all regular fields. However,
-        /// if a message containing a map field is introspected, the list of nested messages will include
+        /// In descriptors for generated code, the value returned by this property will be non-null for all
+        /// regular fields. However, if a message containing a map field is introspected, the list of nested messages will include
         /// an auto-generated nested key/value pair message for the field. This is not represented in any
         /// generated type, and the value of the map field itself is represented by a dictionary in the
         /// reflection API. There are never instances of those "hidden" messages, so no accessor is provided
         /// and this property will return null.
+        /// </para>
+        /// <para>
+        /// In dynamically loaded descriptors, the value returned by this property will current be null;
+        /// if and when dynamic messages are supported, it will return a suitable accessor to work with
+        /// them.
         /// </para>
         /// </remarks>
         public IFieldAccessor Accessor => accessor;
@@ -251,6 +256,11 @@ namespace Google.Protobuf.Reflection
         }
 
         /// <summary>
+        /// The (possibly empty) set of custom options for this field.
+        /// </summary>
+        public CustomOptions CustomOptions => Proto.Options?.CustomOptions ?? CustomOptions.Empty;
+
+        /// <summary>
         /// Look up and cross-link all field types etc.
         /// </summary>
         internal void CrossLink()
@@ -325,7 +335,8 @@ namespace Google.Protobuf.Reflection
         private IFieldAccessor CreateAccessor()
         {
             // If we're given no property name, that's because we really don't want an accessor.
-            // (At the moment, that means it's a map entry message...)
+            // This could be because it's a map message, or it could be that we're loading a FileDescriptor dynamically.
+            // TODO: Support dynamic messages.
             if (propertyName == null)
             {
                 return null;

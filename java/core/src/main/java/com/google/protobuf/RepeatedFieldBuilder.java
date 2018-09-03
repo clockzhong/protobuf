@@ -30,6 +30,8 @@
 
 package com.google.protobuf;
 
+import static com.google.protobuf.Internal.checkNotNull;
+
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -290,9 +292,7 @@ public class RepeatedFieldBuilder
    */
   public RepeatedFieldBuilder<MType, BType, IType> setMessage(
       int index, MType message) {
-    if (message == null) {
-      throw new NullPointerException();
-    }
+    checkNotNull(message);
     ensureMutableMessageList();
     messages.set(index, message);
     if (builders != null) {
@@ -315,9 +315,7 @@ public class RepeatedFieldBuilder
    */
   public RepeatedFieldBuilder<MType, BType, IType> addMessage(
       MType message) {
-    if (message == null) {
-      throw new NullPointerException();
-    }
+    checkNotNull(message);
     ensureMutableMessageList();
     messages.add(message);
     if (builders != null) {
@@ -339,9 +337,7 @@ public class RepeatedFieldBuilder
    */
   public RepeatedFieldBuilder<MType, BType, IType> addMessage(
       int index, MType message) {
-    if (message == null) {
-      throw new NullPointerException();
-    }
+    checkNotNull(message);
     ensureMutableMessageList();
     messages.add(index, message);
     if (builders != null) {
@@ -363,9 +359,7 @@ public class RepeatedFieldBuilder
   public RepeatedFieldBuilder<MType, BType, IType> addAllMessages(
       Iterable<? extends MType> values) {
     for (final MType value : values) {
-      if (value == null) {
-        throw new NullPointerException();
-      }
+      checkNotNull(value);
     }
 
     // If we can inspect the size, we can more efficiently add messages.
@@ -579,7 +573,7 @@ public class RepeatedFieldBuilder
     }
   }
 
-  //@Override (Java 1.6 override semantics, but we must support 1.5)
+  @Override
   public void markDirty() {
     onChanged();
   }
@@ -621,10 +615,12 @@ public class RepeatedFieldBuilder
       this.builder = builder;
     }
 
+    @Override
     public int size() {
       return this.builder.getCount();
     }
 
+    @Override
     public MType get(int index) {
       return builder.getMessage(index);
     }
@@ -654,10 +650,12 @@ public class RepeatedFieldBuilder
       this.builder = builder;
     }
 
+    @Override
     public int size() {
       return this.builder.getCount();
     }
 
+    @Override
     public BType get(int index) {
       return builder.getBuilder(index);
     }
@@ -687,10 +685,12 @@ public class RepeatedFieldBuilder
       this.builder = builder;
     }
 
+    @Override
     public int size() {
       return this.builder.getCount();
     }
 
+    @Override
     public IType get(int index) {
       return builder.getMessageOrBuilder(index);
     }

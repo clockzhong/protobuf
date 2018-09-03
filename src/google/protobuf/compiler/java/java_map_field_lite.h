@@ -40,19 +40,18 @@ namespace java {
 
 class ImmutableMapFieldLiteGenerator : public ImmutableFieldLiteGenerator {
  public:
-  explicit ImmutableMapFieldLiteGenerator(
-      const FieldDescriptor* descriptor, int messageBitIndex,
-      int builderBitIndex, Context* context);
+  explicit ImmutableMapFieldLiteGenerator(const FieldDescriptor* descriptor,
+                                          int messageBitIndex,
+                                          Context* context);
   ~ImmutableMapFieldLiteGenerator();
 
   // implements ImmutableFieldLiteGenerator ------------------------------------
   int GetNumBitsForMessage() const;
-  int GetNumBitsForBuilder() const;
   void GenerateInterfaceMembers(io::Printer* printer) const;
   void GenerateMembers(io::Printer* printer) const;
   void GenerateBuilderMembers(io::Printer* printer) const;
   void GenerateInitializationCode(io::Printer* printer) const;
-  void GenerateMergingCode(io::Printer* printer) const;
+  void GenerateVisitCode(io::Printer* printer) const;
   void GenerateDynamicMethodMakeImmutableCode(io::Printer* printer) const;
   void GenerateParsingCode(io::Printer* printer) const;
   void GenerateParsingDoneCode(io::Printer* printer) const;
@@ -62,17 +61,19 @@ class ImmutableMapFieldLiteGenerator : public ImmutableFieldLiteGenerator {
   void GenerateEqualsCode(io::Printer* printer) const;
   void GenerateHashCode(io::Printer* printer) const;
 
+
   string GetBoxedType() const;
 
  private:
   const FieldDescriptor* descriptor_;
-  map<string, string> variables_;
+  std::map<string, string> variables_;
+  Context* context_;
   ClassNameResolver* name_resolver_;
 };
 
 }  // namespace java
 }  // namespace compiler
 }  // namespace protobuf
-
 }  // namespace google
+
 #endif  // GOOGLE_PROTOBUF_COMPILER_JAVA_MAP_FIELD_LITE_H__
